@@ -1,0 +1,49 @@
+workflows:
+  ios-unsigned-ipa:
+    name: iOS Unsigned IPA
+    instance_type: mac_mini_m2
+    max_build_duration: 60
+    environment:
+      xcode: latest
+      vars:
+        XCODE_PROJECT: StoreStaffNative.xcodeproj
+        XCODE_SCHEME: StoreStaffNative
+        BUNDLE_ID: com.tastien.storestaff.native
+    scripts:
+      - name: Show toolchain
+        script: |
+          set -e
+          xcodebuild -version
+          xcrun --sdk iphoneos --show-sdk-version
+          echo "Bundle ID: $BUNDLE_ID"
+      - name: Build unsigned archive
+        script: |
+          set -o pipefail
+          xcodebuild archive \
+            -project "$XCODE_PROJECT" \
+            -scheme "$XCODE_SCHEME" \
+            -configuration Release \
+            -destination 'generic/platform=iOS' \
+            -archivePath "$CM_BUILD_DIR/build/StoreStaffNative.xcarchive" \
+            CODE_SIGNING_ALLOWED=NO \
+            CODE_SIGNING_REQUIRED=NO \
+            CODE_SIGN_IDENTITY="" \
+            EXPANDED_CODE_SIGN_IDENTITY="" \
+            CODE_SIGN_ENTITLEMENTS="" \
+            SKIP_INSTALL=NO \
+            2>&1 | tee build.log
+      - name: Package unsigned IPA
+        script: |
+          set -e
+          APP="build/StoreStaffNative.xcarchive/Products/Applications/StoreStaffNative.app"
+          test -d "$APP"
+          rm -rf Payload StoreStaffNative-unsigned.ipa
+          mkdir -p Payload
+          cp -R "$APP" Payload/
+          zip -qry StoreStaffNative-unsigned.ipa Payload
+          ls -lh StoreStaffNative-unsigned.ipa
+          shasum -a 256 StoreStaffNative-unsigned.ipa | tee StoreStaffNative-unsigned.ipa.sha256
+    artifacts:
+      - StoreStaffNative-unsigned.ipa
+      - StoreStaffNative-unsigned.ipa.sha256
+      - build.log
